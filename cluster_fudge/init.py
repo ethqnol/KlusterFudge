@@ -1,13 +1,15 @@
 from enum import Enum
 import numpy.typing as npt
 import numpy as np
+from numba import njit, prange
+from cluster_fudge.utils import distance, DistanceMetrics
 
 class InitMethod(Enum):
     RAND = 0
     HUANG = 1
     CAO = 2
 
-def init_centroids(X: npt.NDArray[np.float64], n_clusters: int, method: InitMethod) -> np.ndarray:
+def init_centroids(X: npt.NDArray[np.float64], n_clusters: int, method: InitMethod, distance_metric: DistanceMetrics = DistanceMetrics.HAMMING) -> np.ndarray:
     if method == InitMethod.RAND:
         n_samples = X.shape[0]
         if n_clusters > n_samples:
@@ -18,7 +20,7 @@ def init_centroids(X: npt.NDArray[np.float64], n_clusters: int, method: InitMeth
     elif method == InitMethod.HUANG:
         return _init_centroids_huang(X, n_clusters)
     elif method == InitMethod.CAO:
-        return _init_centroids_cao(X, n_clusters)
+        return _init_centroids_cao(X, n_clusters, distance_metric)
     else:
         raise ValueError(f"Unknown init method: {method}")
 
@@ -50,7 +52,6 @@ def _init_centroids_huang(X: npt.ArrayLike, n_clusters: int) -> np.ndarray:
     taken_indices = set()
 
     for i in range(n_clusters):
-        min_dist = float('inf')
         best_idx = -1
         distances = np.sum(X != synthetic_centroids[i], axis=1)
         candidate_indices = np.argsort(distances)
@@ -69,7 +70,31 @@ def _init_centroids_huang(X: npt.ArrayLike, n_clusters: int) -> np.ndarray:
     return final_centroids
 
 
+@njit(parallel=True, fastmath=True)
+def _compute_X_density(X: npt.ArrayLike) -> np.ndarray:
+    X = np.asarray(X)
+    U, A = X.shape
 
-def _init_centroids_cao(X: npt.NDArray[np.float64], n_clusters: int) -> np.ndarray:
-    # Implementation of Cao's method
-    pass
+    densities = np.zeros(U, dtype=np.float64)
+
+    for a in range(A):
+        col = X[:, a]
+        max_val = np.max(col)
+        counts = np.zeros(max_val + 1, dtype=np.int64)
+        for u in range(U):
+            counts[col[u]] += 1
+
+        for u in prange(U):
+            val = col[u]
+            densities[u] += counts[val]
+
+    return densities / (U * A)
+
+def _init_centroids_cao(X: npt.NDArray[np.float64], n_clusters: int, distance_metric: DistanceMetrics) -> np.ndarray:
+    densities = _compute_X_density(X)
+    centroid_set = [X[np.argmax(densities)]]
+    for i, x in enumerate(densities):
+        if i in centroid_set:
+            continue
+        next_centroid =
+    return np.array(centroid_set)
