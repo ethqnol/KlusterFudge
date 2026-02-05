@@ -9,6 +9,7 @@ from enum import Enum
 class DistanceMetrics(Enum):
     HAMMING = 'hamming'
     JACCARD = 'jaccard'
+    NG = 'ng'
 
 #we have list of centroid which we want to compare our input to
 # a point is a list of xyz, in higher dimensions it has n items
@@ -47,10 +48,13 @@ def jaccard(X:np.ndarray, centroids:np.ndarray) -> npt.NDArray[np.float64]: #np.
     return distance
 
 
+
 def distance(X:np.ndarray, centroids:np.ndarray, metric:DistanceMetrics) -> npt.NDArray[np.float64]:
     if metric == DistanceMetrics.HAMMING:
         return hamming(X, centroids)
     elif metric == DistanceMetrics.JACCARD:
         return jaccard(X, centroids)
+    elif metric == DistanceMetrics.NG:
+        return ng(X, centroids)
     else:
         raise ValueError(f"Unsupported distance metric: {metric}")
