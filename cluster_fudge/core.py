@@ -2,7 +2,7 @@ import numpy.typing as npt
 import numpy as np
 from cluster_fudge.dist import DistanceMetrics, distance
 from cluster_fudge.init import init_centroids, InitMethod
-from cluster_fudge.utils import update_centroids_mode
+from cluster_fudge.utils import update_centroids
 
 
 class ClusterFudge:
@@ -99,12 +99,51 @@ class ClusterFudge:
 
         self.labels = np.zeros(X.shape[0], dtype=int)
         for i in range(self.max_iter):  # for the number of iterations, fit, then adjust
-            dist = distance(X, self.centroids, self.dist_metric)  # compute distance
+            # Use Hamming for the first iteration if metric is NG to generate initial labels
+            current_metric = self.dist_metric
+            if i == 0 and self.dist_metric == DistanceMetrics.NG:
+                current_metric = DistanceMetrics.HAMMING
+
+            dist = distance(
+                X, self.centroids, current_metric, labels=self.labels
+            )  # compute distance
 
             # Assign each point to its closest centroid (vectorize using np.argmin on axis 1)
             self.labels = np.argmin(dist, axis=1)
 
             # update centroids
-            self.centroids = update_centroids_mode(X, self.labels, self.n_clusters)
+            self.centroids = update_centroids(X, self.labels, self.n_clusters)
 
         self.decoded_centroids = self._decode(self.centroids)
+
+    def predict(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.int64]:
+        """
+        Predict the cluster labels for the input data.
+
+        Args:
+            X: (npt.NDArray[np.float64]) Data array (n_samples, n_features)
+
+        Returns:
+            (npt.NDArray[np.int64]) Labels array (n_samples,)
+        """
+        if hasattr(X, "values"):
+            X = X.values
+        else:
+            X = np.asarray(X)
+
+        X = self._encode(X)
+        dist = distance(X, self.centroids, self.dist_metric)
+        return np.argmin(dist, axis=1)
+
+    def fit_predict(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.int64]:
+        """
+        Fit the model to the input data and return the cluster labels.
+
+        Args:
+            X: (npt.NDArray[np.float64]) Data array (n_samples, n_features)
+
+        Returns:
+            (npt.NDArray[np.int64]) Labels array (n_samples,)
+        """
+        self.fit(X)
+        return self.labels
