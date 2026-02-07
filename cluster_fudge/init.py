@@ -12,7 +12,10 @@ class InitMethod(Enum):
 
 
 def init_centroids(
-    X: npt.NDArray[np.float64], n_clusters: int, method: InitMethod
+    X: npt.NDArray[np.float64],
+    n_clusters: int,
+    method: InitMethod,
+    random_state: int | None = None,
 ) -> np.ndarray:
     """
     Initialize centroids using the specified method.
@@ -21,10 +24,13 @@ def init_centroids(
         X: (npt.NDArray[np.float64]) Data array (n_samples, n_features)
         n_clusters: (int) Number of clusters
         method: (InitMethod) Initialization method
+        random_state: (int | None) Random seed for reproducibility
 
     Returns:
         (npt.NDArray[np.float64]) Centroids array (n_clusters, n_features)
     """
+    if random_state is not None:
+        np.random.seed(random_state)
 
     if method == InitMethod.RAND:
         n_samples = X.shape[0]

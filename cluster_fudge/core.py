@@ -13,6 +13,7 @@ class ClusterFudge:
         max_iter: int = 100,
         init_method: str = "cao",
         dist_metric: str = "hamming",
+        random_state: int = 42,
     ) -> None:
         self.n_clusters = n_clusters
         self.n_init = n_init
@@ -23,6 +24,7 @@ class ClusterFudge:
         self.encodings = []
         self.decoded_centroids = None
         self.is_df = False
+        self.random_state = random_state
 
         if init_method == "random":
             self.init_method = InitMethod.RAND
@@ -42,7 +44,7 @@ class ClusterFudge:
         else:
             raise ValueError(f"Unknown distance metric: {dist_metric}")
 
-    def _encode(self, X: npt.ndarray) -> npt.NDArray[np.int64]:
+    def _encode(self, X: npt.NDArray) -> npt.NDArray[np.int64]:
         self.encodings = []
         X_encoded = np.zeros(X.shape, dtype=int)
 
@@ -95,7 +97,9 @@ class ClusterFudge:
 
         # encode X into integer array for efficiency
         X = self._encode(X)
-        self.centroids = init_centroids(X, self.n_clusters, self.init_method)
+        self.centroids = init_centroids(
+            X, self.n_clusters, self.init_method, random_state=self.random_state
+        )
 
         self.labels = np.zeros(X.shape[0], dtype=int)
         for i in range(self.max_iter):  # for the number of iterations, fit, then adjust

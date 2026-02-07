@@ -39,7 +39,7 @@ def hamming(
     n_clusters = centroids.shape[0]
 
     # dist matrix
-    distance: npt.NDArray[np.float64] = np.zeros((rows, n_clusters), dtype=int)
+    distance: npt.NDArray[np.float64] = np.zeros((rows, n_clusters), dtype=np.float64)
     for i in prange(rows):  # iterate from 0 through the number of rows
         for j in range(n_clusters):
             dist = 0
@@ -73,7 +73,7 @@ def jaccard(
     n_clusters = centroids.shape[0]
 
     # dist matrix
-    distance: npt.NDArray[np.float64] = np.zeros((rows, n_clusters), dtype=int)
+    distance: npt.NDArray[np.float64] = np.zeros((rows, n_clusters), dtype=np.float64)
     for i in prange(rows):  # iterate from 0 through the number of rows
         for j in range(n_clusters):
             dist = 0
