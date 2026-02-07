@@ -1,3 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cluster_fudge"
+version = "0.1.0"
+authors = [
+  { name="Ethan Wu, Will Stokes", email="ewu@u.northwestern.edu" }
+]
+description = "A Python library for clustering categorical data using K-Modes with various distance metrics."
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "pandas",
+    "numba",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/ethqnol/ClusterFudge"
+"Bug Tracker" = "https://github.com/ethqnol/ClusterFudge/issues"
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
