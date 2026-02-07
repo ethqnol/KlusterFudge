@@ -1,5 +1,5 @@
 import numpy as np
-from cluster_fudge.utils import update_centroids
+from kluster_fudge.utils import update_centroids
 
 
 def test_update_centroids():

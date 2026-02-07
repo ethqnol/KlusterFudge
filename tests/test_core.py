@@ -1,22 +1,22 @@
 import numpy as np
 import pytest
 import pandas as pd
-from cluster_fudge.core import ClusterFudge
+from kluster_fudge.core import KModes
 
 
 def test_init_validation():
     # invalid init method raises error
     with pytest.raises(ValueError, match="Unknown init method"):
-        ClusterFudge(init_method="invalid")
+        KModes(init_method="invalid")
 
     # invalid dist metric raises error
     with pytest.raises(ValueError, match="Unknown distance metric"):
-        ClusterFudge(dist_metric="invalid")
+        KModes(dist_metric="invalid")
 
 
 def test_fit_predict_hamming(categorical_data):
     # init model
-    model = ClusterFudge(n_clusters=3, dist_metric="hamming", max_iter=5)
+    model = KModes(n_clusters=3, dist_metric="hamming", max_iter=5)
     model.fit(categorical_data)
 
     # labels exist and match len
@@ -30,14 +30,14 @@ def test_fit_predict_hamming(categorical_data):
 
 def test_fit_predict_jaccard(categorical_data):
     # jaccard metric runs ok
-    model = ClusterFudge(n_clusters=3, dist_metric="jaccard", max_iter=5)
+    model = KModes(n_clusters=3, dist_metric="jaccard", max_iter=5)
     model.fit(categorical_data)
     assert model.labels is not None
 
 
 def test_fit_predict_ng(categorical_data):
     # ng metric runs ok
-    model = ClusterFudge(n_clusters=3, dist_metric="ng", max_iter=5)
+    model = KModes(n_clusters=3, dist_metric="ng", max_iter=5)
     model.fit(categorical_data)
 
     # labels exist
@@ -56,7 +56,7 @@ def test_perfect_separation():
     X = np.vstack([g1, g2])
 
     # fit model
-    model = ClusterFudge(n_clusters=2, max_iter=10, init_method="random")
+    model = KModes(n_clusters=2, max_iter=10, init_method="random")
     model.fit(X)
 
     # first 10 same label
@@ -70,7 +70,7 @@ def test_perfect_separation():
 def test_pandas_input(categorical_data):
     # dataframe input works
     df = pd.DataFrame(categorical_data, columns=["c1", "c2", "c3", "c4"])
-    model = ClusterFudge(n_clusters=3)
+    model = KModes(n_clusters=3)
     model.fit(df)
 
     # is_df flag set
@@ -84,7 +84,7 @@ def test_pandas_input(categorical_data):
 
 def test_fit_predict_return(categorical_data):
     # fit_predict returns labels
-    model = ClusterFudge(n_clusters=3)
+    model = KModes(n_clusters=3)
     labels = model.fit_predict(categorical_data)
 
     assert labels is not None
@@ -94,17 +94,17 @@ def test_fit_predict_return(categorical_data):
 @pytest.mark.parametrize("method", ["random", "huang", "cao"])
 def test_init_methods(categorical_data, method):
     # all init methods work
-    model = ClusterFudge(n_clusters=3, init_method=method, max_iter=2)
+    model = KModes(n_clusters=3, init_method=method, max_iter=2)
     model.fit(categorical_data)
     assert model.centroids is not None
 
 
 def test_determinism(categorical_data):
     # runs with same seed produce same results
-    m1 = ClusterFudge(n_clusters=3, random_state=42)
+    m1 = KModes(n_clusters=3, random_state=42)
     m1.fit(categorical_data)
 
-    m2 = ClusterFudge(n_clusters=3, random_state=42)
+    m2 = KModes(n_clusters=3, random_state=42)
     m2.fit(categorical_data)
 
     assert np.array_equal(m1.labels, m2.labels)
@@ -128,7 +128,7 @@ def test_simple_clusters():
     # shuffle rows to make it slightly harder (but keeping structure)
     # actually let's keep it ordered to easily check ranges, model doesn't care about order
 
-    model = ClusterFudge(n_clusters=3, init_method="cao")
+    model = KModes(n_clusters=3, init_method="cao")
     model.fit(X)
 
     # check that points 0-9 are same, 10-19 same, 20-29 same

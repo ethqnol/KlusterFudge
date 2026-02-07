@@ -1,4 +1,4 @@
-# ClusterFudge
+# KlusterFudge
 
 A Python library for clustering categorical data using the **K-Modes** algorithm. It supports multiple initialization methods and distance metrics, optimized with `numba` for performance.
 
@@ -11,10 +11,10 @@ A Python library for clustering categorical data using the **K-Modes** algorithm
 
 ## Installation
 
-Install `ClusterFudge` via pip:
+Install `KlusterFudge` via pip:
 
 ```bash
-pip install cluster-fudge
+pip install kluster-fudge
 ```
 
 Or install from source:
@@ -29,7 +29,7 @@ pip install .
 
 ```python
 import pandas as pd
-from cluster_fudge import ClusterFudge
+from kluster_fudge import KModes
 
 # 1. Load Data
 df = pd.DataFrame({
@@ -39,7 +39,7 @@ df = pd.DataFrame({
 })
 
 # 2. Initialize Model
-model = ClusterFudge(
+model = KModes(
     n_clusters=2, 
     init_method='cao', 
     dist_metric='hamming', 

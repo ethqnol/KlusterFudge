@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from cluster_fudge.dist import distance, hamming, jaccard, ng, DistanceMetrics
+from kluster_fudge.dist import distance, hamming, jaccard, ng, DistanceMetrics
 
 
 def test_hamming_simple():
@@ -38,7 +38,6 @@ def test_ng_simple():
     X = np.array([[0, 0], [0, 1]], dtype=np.int64)
     centroids = np.array([[0, 0]], dtype=np.int64)
     labels = np.array([0, 0], dtype=np.int64)
-
 
     dist = ng(X, centroids, labels)
     expected = np.array([[0.5], [0.5]])

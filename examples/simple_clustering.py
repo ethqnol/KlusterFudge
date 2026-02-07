@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from cluster_fudge.core import ClusterFudge
+from kluster_fudge.core import KModes
 
 
 def main():
@@ -36,8 +36,8 @@ def main():
     print(df.head(), "\n")
 
     # 2. Initialize and Fit Model
-    print("Fitting ClusterFudge (k=2)...")
-    cdf = ClusterFudge(n_clusters=2, random_state=42)
+    print("Fitting KModes (k=2)...")
+    cdf = KModes(n_clusters=2, random_state=42)
     cdf.fit(df)
 
     print("Labels computed.")

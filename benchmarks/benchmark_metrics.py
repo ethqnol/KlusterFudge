@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import pandas as pd
-from cluster_fudge.core import ClusterFudge
+from kluster_fudge.core import KModes
 
 
 def benchmark():
@@ -28,7 +28,7 @@ def benchmark():
                 f"\nBenchmarking metric: {metric.upper()} w/ init: {init_method.upper()}"
             )
 
-            model = ClusterFudge(
+            model = KModes(
                 n_clusters=n_clusters, dist_metric=metric, max_iter=10, random_state=42
             )
 

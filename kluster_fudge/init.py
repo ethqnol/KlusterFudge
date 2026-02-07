@@ -2,7 +2,7 @@ from enum import Enum
 import numpy.typing as npt
 import numpy as np
 from numba import njit, prange
-from cluster_fudge.dist import distance, DistanceMetrics
+from kluster_fudge.dist import distance, DistanceMetrics
 
 
 class InitMethod(Enum):

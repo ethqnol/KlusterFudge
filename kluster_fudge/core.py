@@ -1,11 +1,11 @@
 import numpy.typing as npt
 import numpy as np
-from cluster_fudge.dist import DistanceMetrics, distance
-from cluster_fudge.init import init_centroids, InitMethod
-from cluster_fudge.utils import update_centroids
+from kluster_fudge.dist import DistanceMetrics, distance
+from kluster_fudge.init import init_centroids, InitMethod
+from kluster_fudge.utils import update_centroids
 
 
-class ClusterFudge:
+class KModes:
     def __init__(
         self,
         n_clusters: int = 8,
