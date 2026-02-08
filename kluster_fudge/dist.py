@@ -1,7 +1,11 @@
+from __future__ import annotations
 import numpy as np
 import numpy.typing as npt
 from numba import prange, njit
 from enum import Enum
+
+
+__all__ = ["DistanceMetrics", "distance"]
 
 
 class DistanceMetrics(Enum):
@@ -17,7 +21,7 @@ class DistanceMetrics(Enum):
 
 # X is data, Centroids is centroids
 @njit(parallel=True, fastmath=True)
-def hamming(
+def _hamming(
     X: npt.NDArray[np.int64], centroids: npt.NDArray[np.int64]
 ) -> npt.NDArray[np.float64]:
     """
@@ -51,7 +55,7 @@ def hamming(
 
 
 @njit(parallel=True, fastmath=True)
-def jaccard(
+def _jaccard(
     X: npt.NDArray[np.int64], centroids: npt.NDArray[np.int64]
 ) -> npt.NDArray[np.float64]:
     """
@@ -87,7 +91,7 @@ def jaccard(
 
 
 @njit(parallel=True, fastmath=True)
-def ng(
+def _ng(
     X: npt.NDArray[np.int64],
     centroids: npt.NDArray[np.int64],
     labels: npt.NDArray[np.int64],
@@ -175,12 +179,12 @@ def distance(
     """
 
     if metric == DistanceMetrics.HAMMING:
-        return hamming(X, centroids)
+        return _hamming(X, centroids)
     elif metric == DistanceMetrics.JACCARD:
-        return jaccard(X, centroids)
+        return _jaccard(X, centroids)
     elif metric == DistanceMetrics.NG:
         if labels is None:
             raise ValueError("Labels are required for NG distance")
-        return ng(X, centroids, labels)
+        return _ng(X, centroids, labels)
     else:
         raise ValueError(f"Unsupported distance metric: {metric}")

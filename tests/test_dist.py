@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from kluster_fudge.dist import distance, hamming, jaccard, ng, DistanceMetrics
+from kluster_fudge.dist import distance, _hamming, _jaccard, _ng, DistanceMetrics
 
 
 def test_hamming_simple():
@@ -14,7 +14,7 @@ def test_hamming_simple():
     # x1 vs c0: 1
     # ...
 
-    dist = hamming(X, centroids)
+    dist = _hamming(X, centroids)
 
     expected = np.array([[0, 2], [1, 1], [2, 0]], dtype=np.float64)
 
@@ -29,7 +29,7 @@ def test_jaccard_simple():
     # x0 vs c0: match=2, total=2. dist=0
     # x0 vs c1: match=0, total=4. dist=1
 
-    dist = jaccard(X, centroids)
+    dist = _jaccard(X, centroids)
     expected = np.array([[0.0, 1.0]])
     np.testing.assert_array_almost_equal(dist, expected)
 
@@ -39,7 +39,7 @@ def test_ng_simple():
     centroids = np.array([[0, 0]], dtype=np.int64)
     labels = np.array([0, 0], dtype=np.int64)
 
-    dist = ng(X, centroids, labels)
+    dist = _ng(X, centroids, labels)
     expected = np.array([[0.5], [0.5]])
     np.testing.assert_array_almost_equal(dist, expected)
 
@@ -66,7 +66,7 @@ def test_ng_empty_cluster_handling():
     centroids = np.array([[0], [1]], dtype=np.int64)
     labels = np.array([0], dtype=np.int64)  # c1 empty
 
-    dist = ng(X, centroids, labels)
+    dist = _ng(X, centroids, labels)
     # dist to c1 should be max (1.0 for 1 feature)
     assert dist[0, 1] == 1.0
 
@@ -75,4 +75,4 @@ def test_dimensions_mismatch(encoded_data, centroids):
     # error on dimension mismatch
     bad_centroids = centroids[:, :-1]
     with pytest.raises(ValueError, match="features"):
-        hamming(encoded_data, bad_centroids)
+        _hamming(encoded_data, bad_centroids)

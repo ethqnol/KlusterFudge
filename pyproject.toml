@@ -23,8 +23,8 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/ethqnol/ClusterFudge"
-"Bug Tracker" = "https://github.com/ethqnol/ClusterFudge/issues"
+"Homepage" = "https://github.com/ethqnol/KlusterFudge"
+"Bug Tracker" = "https://github.com/ethqnol/KlusterFudge/issues"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

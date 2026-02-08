@@ -2,6 +2,8 @@
 
 A Python library for clustering categorical data using the **K-Modes** algorithm. It supports multiple initialization methods and distance metrics, optimized with `numba` for performance.
 
+[Documentation](https://ethqnol.github.io/KlusterFudge/) | [PyPI](https://pypi.org/project/kluster-fudge/)
+
 ## Features
 - **Algorithms**: K-Modes clustering for categorical data.
 - **Distance Metrics**: Hamming, Jaccard, and NG dissimilarity measures.
@@ -20,8 +22,8 @@ pip install kluster-fudge
 Or install from source:
 
 ```bash
-git clone https://github.com/ethqnol/ClusterFudge.git
-cd ClusterFudge
+git clone https://github.com/ethqnol/KlusterFudge.git
+cd KlusterFudge
 pip install .
 ```
 

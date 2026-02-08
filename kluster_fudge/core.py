@@ -1,3 +1,4 @@
+from __future__ import annotations
 import numpy.typing as npt
 import numpy as np
 from kluster_fudge.dist import DistanceMetrics, distance
