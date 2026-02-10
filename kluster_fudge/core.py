@@ -26,6 +26,7 @@ class KModes:
         self.decoded_centroids = None
         self.is_df = False
         self.random_state = random_state
+        self.cost_ = 0.0
 
         if init_method == "random":
             self.init_method = InitMethod.RAND
@@ -78,6 +79,32 @@ class KModes:
         # decoded is a list of arrays representing columns; stack horizontally so each row is a centroid
         return np.array(decoded).T
 
+    def _compute_cost(
+        self,
+        X: npt.NDArray[np.int64],
+        centroids: npt.NDArray[np.int64],
+        labels: npt.NDArray[np.int64],
+    ) -> float:
+        """
+        Compute the total cost (sum of distances) of the clustering.
+
+        Args:
+            X: (npt.NDArray[np.int64]) Data array (n_samples, n_features)
+            centroids: (npt.NDArray[np.int64]) Centroids array (n_clusters, n_features)
+            labels: (npt.NDArray[np.int64]) Labels array (n_samples,)
+
+        Returns:
+            (float) Total cost
+        """
+        cost = 0.0
+
+        dist_mat = distance(X, centroids, self.dist_metric, labels=labels)
+
+        rows = np.arange(X.shape[0])
+        cost = np.sum(dist_mat[rows, labels])
+
+        return cost
+
     def fit(self, X: npt.ArrayLike) -> None:
         """
         Fit the model to the input data.
@@ -98,27 +125,61 @@ class KModes:
 
         # encode X into integer array for efficiency
         X = self._encode(X)
-        self.centroids = init_centroids(
-            X, self.n_clusters, self.init_method, random_state=self.random_state
-        )
 
-        self.labels = np.zeros(X.shape[0], dtype=int)
-        for i in range(self.max_iter):  # for the number of iterations, fit, then adjust
-            # Use Hamming for the first iteration if metric is NG to generate initial labels
-            current_metric = self.dist_metric
-            if i == 0 and self.dist_metric == DistanceMetrics.NG:
-                current_metric = DistanceMetrics.HAMMING
+        best_cost = float("inf")
+        best_centroids = None
+        best_labels = None
 
-            dist = distance(
-                X, self.centroids, current_metric, labels=self.labels
-            )  # compute distance
+        if self.n_init < 1:
+            raise ValueError(f"n_init must be at least 1, got {self.n_init}")
 
-            # Assign each point to its closest centroid (vectorize using np.argmin on axis 1)
-            self.labels = np.argmin(dist, axis=1)
+        for init_idx in range(self.n_init):
+            # Use a different random state for each initialization
+            current_random_state = (
+                self.random_state + init_idx if self.random_state is not None else None
+            )
 
-            # update centroids
-            self.centroids = update_centroids(X, self.labels, self.n_clusters)
+            centroids = init_centroids(
+                X, self.n_clusters, self.init_method, random_state=current_random_state
+            )
 
+            labels = np.zeros(X.shape[0], dtype=int)
+
+            # Iteration loop
+            for i in range(self.max_iter):
+                # Use Hamming for the first iteration if metric is NG to generate initial labels
+                current_metric = self.dist_metric
+                if i == 0 and self.dist_metric == DistanceMetrics.NG:
+                    current_metric = DistanceMetrics.HAMMING
+
+                dist = distance(
+                    X, centroids, current_metric, labels=labels
+                )  # compute distance
+
+                labels = np.argmin(dist, axis=1)
+
+                # update centroids
+                new_centroids = update_centroids(X, labels, self.n_clusters)
+
+                if np.array_equal(centroids, new_centroids):
+                    break
+
+                centroids = new_centroids
+
+            # Compute cost for run and update final label assignments
+            final_dist = distance(X, centroids, self.dist_metric, labels=labels)
+            labels = np.argmin(final_dist, axis=1)
+            cost = self._compute_cost(X, centroids, labels)
+
+            # Update best run if this one is better
+            if cost < best_cost:
+                best_cost = cost
+                best_centroids = centroids
+                best_labels = labels
+
+        self.centroids = best_centroids
+        self.labels = best_labels
+        self.cost_ = best_cost
         self.decoded_centroids = self._decode(self.centroids)
 
     def predict(self, X: npt.ArrayLike) -> npt.NDArray[np.int64]:
