@@ -6,13 +6,6 @@ API Reference
    :undoc-members:
    :show-inheritance:
 
-Core
-----
-
-.. automodule:: kluster_fudge.core
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 Dist Metrics
 ------------

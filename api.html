@@ -309,57 +309,6 @@
 
 </dd></dl>
 
-<section id="module-kluster_fudge.core">
-<span id="core"></span><h2>Core<a class="headerlink" href="#module-kluster_fudge.core" title="Link to this heading">¶</a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="kluster_fudge.core.KModes">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">kluster_fudge.core.</span></span><span class="sig-name descname"><span class="pre">KModes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_clusters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_init</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cao'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dist_metric</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'hamming'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">42</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/kluster_fudge/core.html#KModes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#kluster_fudge.core.KModes" title="Link to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="kluster_fudge.core.KModes.fit">
-<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.typing.ArrayLike</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/kluster_fudge/core.html#KModes.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#kluster_fudge.core.KModes.fit" title="Link to this definition">¶</a></dt>
-<dd><p>Fit the model to the input data.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>X</strong> – (npt.ArrayLike) Data array (n_samples, n_features)</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="kluster_fudge.core.KModes.fit_predict">
-<span class="sig-name descname"><span class="pre">fit_predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.typing.ArrayLike</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.typing.NDArray.numpy.int64</span></span></span><a class="reference internal" href="_modules/kluster_fudge/core.html#KModes.fit_predict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#kluster_fudge.core.KModes.fit_predict" title="Link to this definition">¶</a></dt>
-<dd><p>Fit the model to the input data and return the cluster labels.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>X</strong> – (npt.ArrayLike) Data array (n_samples, n_features)</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>(npt.NDArray[np.int64]) Labels array (n_samples,)</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="kluster_fudge.core.KModes.predict">
-<span class="sig-name descname"><span class="pre">predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.typing.ArrayLike</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.typing.NDArray.numpy.int64</span></span></span><a class="reference internal" href="_modules/kluster_fudge/core.html#KModes.predict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#kluster_fudge.core.KModes.predict" title="Link to this definition">¶</a></dt>
-<dd><p>Predict the cluster labels for the input data.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>X</strong> – (npt.ArrayLike) Data array (n_samples, n_features)</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>(npt.NDArray[np.int64]) Labels array (n_samples,)</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
-</section>
 <section id="module-kluster_fudge.dist">
 <span id="dist-metrics"></span><h2>Dist Metrics<a class="headerlink" href="#module-kluster_fudge.dist" title="Link to this heading">¶</a></h2>
 <dl class="py class">
@@ -460,15 +409,6 @@
 <li><a class="reference internal" href="#kluster_fudge.KModes.fit"><code class="docutils literal notranslate"><span class="pre">KModes.fit()</span></code></a></li>
 <li><a class="reference internal" href="#kluster_fudge.KModes.fit_predict"><code class="docutils literal notranslate"><span class="pre">KModes.fit_predict()</span></code></a></li>
 <li><a class="reference internal" href="#kluster_fudge.KModes.predict"><code class="docutils literal notranslate"><span class="pre">KModes.predict()</span></code></a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#module-kluster_fudge.core">Core</a><ul>
-<li><a class="reference internal" href="#kluster_fudge.core.KModes"><code class="docutils literal notranslate"><span class="pre">KModes</span></code></a><ul>
-<li><a class="reference internal" href="#kluster_fudge.core.KModes.fit"><code class="docutils literal notranslate"><span class="pre">KModes.fit()</span></code></a></li>
-<li><a class="reference internal" href="#kluster_fudge.core.KModes.fit_predict"><code class="docutils literal notranslate"><span class="pre">KModes.fit_predict()</span></code></a></li>
-<li><a class="reference internal" href="#kluster_fudge.core.KModes.predict"><code class="docutils literal notranslate"><span class="pre">KModes.predict()</span></code></a></li>
-</ul>
-</li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-kluster_fudge.dist">Dist Metrics</a><ul>

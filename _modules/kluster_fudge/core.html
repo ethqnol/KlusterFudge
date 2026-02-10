@@ -261,6 +261,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">decoded_centroids</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">is_df</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">random_state</span> <span class="o">=</span> <span class="n">random_state</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cost_</span> <span class="o">=</span> <span class="mf">0.0</span>
 
         <span class="k">if</span> <span class="n">init_method</span> <span class="o">==</span> <span class="s2">&quot;random&quot;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="o">=</span> <span class="n">InitMethod</span><span class="o">.</span><span class="n">RAND</span>
@@ -313,6 +314,32 @@
         <span class="c1"># decoded is a list of arrays representing columns; stack horizontally so each row is a centroid</span>
         <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">decoded</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_cost</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">X</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
+        <span class="n">centroids</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
+        <span class="n">labels</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the total cost (sum of distances) of the clustering.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: (npt.NDArray[np.int64]) Data array (n_samples, n_features)</span>
+<span class="sd">            centroids: (npt.NDArray[np.int64]) Centroids array (n_clusters, n_features)</span>
+<span class="sd">            labels: (npt.NDArray[np.int64]) Labels array (n_samples,)</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            (float) Total cost</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cost</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="n">dist_mat</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">centroids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">)</span>
+
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">cost</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dist_mat</span><span class="p">[</span><span class="n">rows</span><span class="p">,</span> <span class="n">labels</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">cost</span>
+
 <div class="viewcode-block" id="KModes.fit">
 <a class="viewcode-back" href="../../api.html#kluster_fudge.KModes.fit">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -335,27 +362,61 @@
 
         <span class="c1"># encode X into integer array for efficiency</span>
         <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_encode</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span> <span class="o">=</span> <span class="n">init_centroids</span><span class="p">(</span>
-            <span class="n">X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_clusters</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">random_state</span>
-        <span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_iter</span><span class="p">):</span>  <span class="c1"># for the number of iterations, fit, then adjust</span>
-            <span class="c1"># Use Hamming for the first iteration if metric is NG to generate initial labels</span>
-            <span class="n">current_metric</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span>
-            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span> <span class="o">==</span> <span class="n">DistanceMetrics</span><span class="o">.</span><span class="n">NG</span><span class="p">:</span>
-                <span class="n">current_metric</span> <span class="o">=</span> <span class="n">DistanceMetrics</span><span class="o">.</span><span class="n">HAMMING</span>
+        <span class="n">best_cost</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
+        <span class="n">best_centroids</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">best_labels</span> <span class="o">=</span> <span class="kc">None</span>
 
-            <span class="n">dist</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span>
-                <span class="n">X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span><span class="p">,</span> <span class="n">current_metric</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">labels</span>
-            <span class="p">)</span>  <span class="c1"># compute distance</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_init</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;n_init must be at least 1, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_init</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-            <span class="c1"># Assign each point to its closest centroid (vectorize using np.argmin on axis 1)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">init_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_init</span><span class="p">):</span>
+            <span class="c1"># Use a different random state for each initialization</span>
+            <span class="n">current_random_state</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">random_state</span> <span class="o">+</span> <span class="n">init_idx</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">random_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">)</span>
 
-            <span class="c1"># update centroids</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span> <span class="o">=</span> <span class="n">update_centroids</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_clusters</span><span class="p">)</span>
+            <span class="n">centroids</span> <span class="o">=</span> <span class="n">init_centroids</span><span class="p">(</span>
+                <span class="n">X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_clusters</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">current_random_state</span>
+            <span class="p">)</span>
 
+            <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+            <span class="c1"># Iteration loop</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_iter</span><span class="p">):</span>
+                <span class="c1"># Use Hamming for the first iteration if metric is NG to generate initial labels</span>
+                <span class="n">current_metric</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span> <span class="o">==</span> <span class="n">DistanceMetrics</span><span class="o">.</span><span class="n">NG</span><span class="p">:</span>
+                    <span class="n">current_metric</span> <span class="o">=</span> <span class="n">DistanceMetrics</span><span class="o">.</span><span class="n">HAMMING</span>
+
+                <span class="n">dist</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span>
+                    <span class="n">X</span><span class="p">,</span> <span class="n">centroids</span><span class="p">,</span> <span class="n">current_metric</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span>
+                <span class="p">)</span>  <span class="c1"># compute distance</span>
+
+                <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+                <span class="c1"># update centroids</span>
+                <span class="n">new_centroids</span> <span class="o">=</span> <span class="n">update_centroids</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_clusters</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">centroids</span><span class="p">,</span> <span class="n">new_centroids</span><span class="p">):</span>
+                    <span class="k">break</span>
+
+                <span class="n">centroids</span> <span class="o">=</span> <span class="n">new_centroids</span>
+
+            <span class="c1"># Compute cost for run and update final label assignments</span>
+            <span class="n">final_dist</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">centroids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">)</span>
+            <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">final_dist</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">cost</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_cost</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">centroids</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+
+            <span class="c1"># Update best run if this one is better</span>
+            <span class="k">if</span> <span class="n">cost</span> <span class="o">&lt;</span> <span class="n">best_cost</span><span class="p">:</span>
+                <span class="n">best_cost</span> <span class="o">=</span> <span class="n">cost</span>
+                <span class="n">best_centroids</span> <span class="o">=</span> <span class="n">centroids</span>
+                <span class="n">best_labels</span> <span class="o">=</span> <span class="n">labels</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span> <span class="o">=</span> <span class="n">best_centroids</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span> <span class="o">=</span> <span class="n">best_labels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cost_</span> <span class="o">=</span> <span class="n">best_cost</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">decoded_centroids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centroids</span><span class="p">)</span></div>
 
 
