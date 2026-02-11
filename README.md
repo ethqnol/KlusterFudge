@@ -5,11 +5,12 @@ A Python library for clustering categorical data using the **K-Modes** algorithm
 [Documentation](https://ethqnol.github.io/KlusterFudge/) | [PyPI](https://pypi.org/project/kluster-fudge/)
 
 ## Features
-- **Algorithms**: K-Modes clustering for categorical data.
-- **Distance Metrics**: Hamming, Jaccard, and NG dissimilarity measures.
-- **Initialization**: Random, Huang, and Cao methods.
-- **Optimization**: Computationally intensive operations are accelerated using `numba`.
-- **Integration**: Supports all ArrayLikes (e.g. numpy arrays, pandas DataFrames, lists of lists, etc.)
+- **Algorithms**: K-Modes clustering for categorical data
+- **GPU Acceleration**: Optional PyTorch-based GPU acceleration via `KModesGPU`
+- **Distance Metrics**: Hamming, Jaccard, and NG dissimilarity measures
+- **Initialization**: Random, Huang, and Cao methods
+- **Optimization**: CPU operations accelerated with `numba`, GPU operations with PyTorch
+- **Integration**: Supports all ArrayLikes (numpy arrays, pandas DataFrames, lists, etc.)
 
 ## Installation
 
@@ -26,6 +27,17 @@ git clone https://github.com/ethqnol/KlusterFudge.git
 cd KlusterFudge
 pip install .
 ```
+
+### GPU Acceleration (Optional)
+
+For GPU acceleration, install PyTorch:
+
+```bash
+pip install torch
+```
+
+See [PyTorch installation guide](https://pytorch.org/get-started/locally/) for CUDA/ROCm support.
+
 
 ## Quick Start
 
@@ -52,6 +64,26 @@ model = KModes(
 clusters = model.fit_predict(df)
 print("Cluster Labels:", clusters)
 ```
+
+## GPU Acceleration
+
+For large datasets, use `KModesGPU` for significant speedups (unless using NG dissimilarity):
+
+```python
+from kluster_fudge import KModesGPU
+import numpy as np
+
+# Large dataset
+X = np.random.randint(0, 10, size=(100000, 20))
+
+# GPU model (auto-detects CUDA/MPS/CPU)
+model_gpu = KModesGPU(n_clusters=5, n_init=5, random_state=42)
+model_gpu.fit(X)
+
+# 3-6x faster than CPU on typical datasets
+```
+
+**Performance**: On a 100k sample dataset, GPU achieves ~3.2x speedup on Apple Silicon (MPS) and up to 6x on CUDA GPUs.
 
 ## Comparisons & Benchmarks
 

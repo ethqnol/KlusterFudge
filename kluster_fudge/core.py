@@ -46,18 +46,37 @@ class KModes:
         else:
             raise ValueError(f"Unknown distance metric: {dist_metric}")
 
-    def _encode(self, X: npt.NDArray) -> npt.NDArray[np.int64]:
+    def _encode(self, X: npt.NDArray) -> npt.NDArray:
         self.encodings = []
-        X_encoded = np.zeros(X.shape, dtype=int)
+        # First encode to a temporary int64 array to handle arbitrary category counts
+        X_encoded_temp = np.zeros(X.shape, dtype=np.int64)
 
         # every column has its own integer encoding
-        # e.g. for mapping ["a", "b", "c"] -> [0, 1, 2], we have ["a", "b", "c", "a", "b"] -> [0, 1, 2, 0, 1]
         for i in range(X.shape[1]):
             unique_vals, encoded = np.unique(X[:, i], return_inverse=True)
             self.encodings.append(unique_vals)
-            X_encoded[:, i] = encoded
+            X_encoded_temp[:, i] = encoded
 
-        return X_encoded
+        # Determine optimal dtype based on max category index
+        max_cat = 0
+        for enc in self.encodings:
+            if len(enc) > max_cat:
+                max_cat = len(enc)
+
+        # -1 because 0-indexed, so max index is len - 1. But effectively we care about storing the value 'len-1'.
+        # Actually max value in X_encoded is exactly len(unique_vals) - 1.
+        max_val = max_cat - 1
+
+        if max_val < 256:
+            dtype = np.uint8
+        elif max_val < 65536:
+            dtype = np.uint16
+        elif max_val < 4294967296:
+            dtype = np.uint32
+        else:
+            dtype = np.int64  # Fallback, though unlikely for categorical data
+
+        return X_encoded_temp.astype(dtype)
 
     def _decode(self, centroids_encoded: npt.NDArray[np.int64]) -> npt.NDArray[np.str_]:
         """
@@ -132,6 +151,11 @@ class KModes:
 
         if self.n_init < 1:
             raise ValueError(f"n_init must be at least 1, got {self.n_init}")
+
+        # Initialize best_cost to infinity
+        best_cost = np.inf
+        best_centroids = None
+        best_labels = None
 
         for init_idx in range(self.n_init):
             # Use a different random state for each initialization
