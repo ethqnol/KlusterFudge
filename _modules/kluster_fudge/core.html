@@ -234,6 +234,7 @@
 <span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy.typing</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">npt</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numba</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">kluster_fudge.dist</span><span class="w"> </span><span class="kn">import</span> <span class="n">DistanceMetrics</span><span class="p">,</span> <span class="n">distance</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">kluster_fudge.init</span><span class="w"> </span><span class="kn">import</span> <span class="n">init_centroids</span><span class="p">,</span> <span class="n">InitMethod</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">kluster_fudge.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">update_centroids</span>
@@ -250,7 +251,20 @@
         <span class="n">init_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cao&quot;</span><span class="p">,</span>
         <span class="n">dist_metric</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;hamming&quot;</span><span class="p">,</span>
         <span class="n">random_state</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">42</span><span class="p">,</span>
+        <span class="n">n_jobs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        K-Modes clustering classifier.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            n_clusters: The number of clusters to form. Defaults to 8.</span>
+<span class="sd">            n_init: Number of times the algorithm will be run with different centroid seeds. Defaults to 10.</span>
+<span class="sd">            max_iter: Maximum number of iterations for a single run. Defaults to 100.</span>
+<span class="sd">            init_method: Method for initialization (&#39;random&#39;, &#39;huang&#39;, or &#39;cao&#39;). Defaults to &#39;cao&#39;.</span>
+<span class="sd">            dist_metric: Distance metric to use (&#39;hamming&#39;, &#39;jaccard&#39;, or &#39;ng&#39;). Defaults to &#39;hamming&#39;.</span>
+<span class="sd">            random_state: Deterministic random seed for centroid initialization. Defaults to 42.</span>
+<span class="sd">            n_jobs: The number of parallel threads to use for Numba. If None, uses Numba&#39;s default. Defaults to None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_clusters</span> <span class="o">=</span> <span class="n">n_clusters</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_init</span> <span class="o">=</span> <span class="n">n_init</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">max_iter</span> <span class="o">=</span> <span class="n">max_iter</span>
@@ -262,6 +276,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">is_df</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">random_state</span> <span class="o">=</span> <span class="n">random_state</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cost_</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_jobs</span> <span class="o">=</span> <span class="n">n_jobs</span>
 
         <span class="k">if</span> <span class="n">init_method</span> <span class="o">==</span> <span class="s2">&quot;random&quot;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="o">=</span> <span class="n">InitMethod</span><span class="o">.</span><span class="n">RAND</span>
@@ -371,77 +386,91 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">old_threads</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_jobs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">old_threads</span> <span class="o">=</span> <span class="n">numba</span><span class="o">.</span><span class="n">get_num_threads</span><span class="p">()</span>
+                <span class="n">numba</span><span class="o">.</span><span class="n">set_num_threads</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_jobs</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
 
-        <span class="c1"># check if X is a pandas dataframe, if so, convert to numpy array</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="s2">&quot;values&quot;</span><span class="p">):</span>
-            <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">values</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">is_df</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># check if X is a pandas dataframe, if so, convert to numpy array</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="s2">&quot;values&quot;</span><span class="p">):</span>
+                <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">values</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">is_df</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
 
-        <span class="c1"># encode X into integer array for efficiency</span>
-        <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_encode</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+            <span class="c1"># encode X into integer array for efficiency</span>
+            <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_encode</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
 
-        <span class="n">best_cost</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
-        <span class="n">best_centroids</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="n">best_labels</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">best_cost</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
+            <span class="n">best_centroids</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">best_labels</span> <span class="o">=</span> <span class="kc">None</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_init</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;n_init must be at least 1, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_init</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_init</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;n_init must be at least 1, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_init</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-        <span class="c1"># Initialize best_cost to infinity</span>
-        <span class="n">best_cost</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
-        <span class="n">best_centroids</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="n">best_labels</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="c1"># Initialize best_cost to infinity</span>
+            <span class="n">best_cost</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+            <span class="n">best_centroids</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">best_labels</span> <span class="o">=</span> <span class="kc">None</span>
 
-        <span class="k">for</span> <span class="n">init_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_init</span><span class="p">):</span>
-            <span class="c1"># Use a different random state for each initialization</span>
-            <span class="n">current_random_state</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">random_state</span> <span class="o">+</span> <span class="n">init_idx</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">random_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
-            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">init_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_init</span><span class="p">):</span>
+                <span class="c1"># Use a different random state for each initialization</span>
+                <span class="n">current_random_state</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">random_state</span> <span class="o">+</span> <span class="n">init_idx</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">random_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+                <span class="p">)</span>
 
-            <span class="n">centroids</span> <span class="o">=</span> <span class="n">init_centroids</span><span class="p">(</span>
-                <span class="n">X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_clusters</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">current_random_state</span>
-            <span class="p">)</span>
+                <span class="n">centroids</span> <span class="o">=</span> <span class="n">init_centroids</span><span class="p">(</span>
+                    <span class="n">X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_clusters</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">current_random_state</span>
+                <span class="p">)</span>
 
-            <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+                <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
 
-            <span class="c1"># Iteration loop</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_iter</span><span class="p">):</span>
-                <span class="c1"># Use Hamming for the first iteration if metric is NG to generate initial labels</span>
-                <span class="n">current_metric</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span>
-                <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span> <span class="o">==</span> <span class="n">DistanceMetrics</span><span class="o">.</span><span class="n">NG</span><span class="p">:</span>
-                    <span class="n">current_metric</span> <span class="o">=</span> <span class="n">DistanceMetrics</span><span class="o">.</span><span class="n">HAMMING</span>
+                <span class="c1"># Iteration loop</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_iter</span><span class="p">):</span>
+                    <span class="c1"># Use Hamming for the first iteration if metric is NG to generate initial labels</span>
+                    <span class="n">current_metric</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span>
+                    <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span> <span class="o">==</span> <span class="n">DistanceMetrics</span><span class="o">.</span><span class="n">NG</span><span class="p">:</span>
+                        <span class="n">current_metric</span> <span class="o">=</span> <span class="n">DistanceMetrics</span><span class="o">.</span><span class="n">HAMMING</span>
 
-                <span class="n">dist</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span>
-                    <span class="n">X</span><span class="p">,</span> <span class="n">centroids</span><span class="p">,</span> <span class="n">current_metric</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span>
-                <span class="p">)</span>  <span class="c1"># compute distance</span>
+                    <span class="n">dist</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span>
+                        <span class="n">X</span><span class="p">,</span> <span class="n">centroids</span><span class="p">,</span> <span class="n">current_metric</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span>
+                    <span class="p">)</span>  <span class="c1"># compute distance</span>
 
-                <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
-                <span class="c1"># update centroids</span>
-                <span class="n">new_centroids</span> <span class="o">=</span> <span class="n">update_centroids</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_clusters</span><span class="p">)</span>
+                    <span class="c1"># update centroids</span>
+                    <span class="n">new_centroids</span> <span class="o">=</span> <span class="n">update_centroids</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_clusters</span><span class="p">)</span>
 
-                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">centroids</span><span class="p">,</span> <span class="n">new_centroids</span><span class="p">):</span>
-                    <span class="k">break</span>
+                    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">centroids</span><span class="p">,</span> <span class="n">new_centroids</span><span class="p">):</span>
+                        <span class="k">break</span>
 
-                <span class="n">centroids</span> <span class="o">=</span> <span class="n">new_centroids</span>
+                    <span class="n">centroids</span> <span class="o">=</span> <span class="n">new_centroids</span>
 
-            <span class="c1"># Compute cost for run and update final label assignments</span>
-            <span class="n">final_dist</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">centroids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">)</span>
-            <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">final_dist</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-            <span class="n">cost</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_cost</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">centroids</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+                <span class="c1"># Compute cost for run and update final label assignments</span>
+                <span class="n">final_dist</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">centroids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">)</span>
+                <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">final_dist</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">cost</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_cost</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">centroids</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
 
-            <span class="c1"># Update best run if this one is better</span>
-            <span class="k">if</span> <span class="n">cost</span> <span class="o">&lt;</span> <span class="n">best_cost</span><span class="p">:</span>
-                <span class="n">best_cost</span> <span class="o">=</span> <span class="n">cost</span>
-                <span class="n">best_centroids</span> <span class="o">=</span> <span class="n">centroids</span>
-                <span class="n">best_labels</span> <span class="o">=</span> <span class="n">labels</span>
+                <span class="c1"># Update best run if this one is better</span>
+                <span class="k">if</span> <span class="n">cost</span> <span class="o">&lt;</span> <span class="n">best_cost</span><span class="p">:</span>
+                    <span class="n">best_cost</span> <span class="o">=</span> <span class="n">cost</span>
+                    <span class="n">best_centroids</span> <span class="o">=</span> <span class="n">centroids</span>
+                    <span class="n">best_labels</span> <span class="o">=</span> <span class="n">labels</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span> <span class="o">=</span> <span class="n">best_centroids</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span> <span class="o">=</span> <span class="n">best_labels</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cost_</span> <span class="o">=</span> <span class="n">best_cost</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">decoded_centroids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centroids</span><span class="p">)</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span> <span class="o">=</span> <span class="n">best_centroids</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">labels</span> <span class="o">=</span> <span class="n">best_labels</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cost_</span> <span class="o">=</span> <span class="n">best_cost</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">decoded_centroids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centroids</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">old_threads</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">numba</span><span class="o">.</span><span class="n">set_num_threads</span><span class="p">(</span><span class="n">old_threads</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span></div>
 
 
 <div class="viewcode-block" id="KModes.predict">
@@ -456,14 +485,29 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            (npt.NDArray[np.int64]) Labels array (n_samples,)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="s2">&quot;values&quot;</span><span class="p">):</span>
-            <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">values</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">old_threads</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_jobs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">old_threads</span> <span class="o">=</span> <span class="n">numba</span><span class="o">.</span><span class="n">get_num_threads</span><span class="p">()</span>
+                <span class="n">numba</span><span class="o">.</span><span class="n">set_num_threads</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_jobs</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
 
-        <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_encode</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
-        <span class="n">dist</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="s2">&quot;values&quot;</span><span class="p">):</span>
+                <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">values</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+
+            <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_encode</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+            <span class="n">dist</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_metric</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">old_threads</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">numba</span><span class="o">.</span><span class="n">set_num_threads</span><span class="p">(</span><span class="n">old_threads</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span></div>
 
 
 <div class="viewcode-block" id="KModes.fit_predict">
