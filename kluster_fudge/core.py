@@ -1,6 +1,7 @@
 from __future__ import annotations
 import numpy.typing as npt
 import numpy as np
+import numba
 from kluster_fudge.dist import DistanceMetrics, distance
 from kluster_fudge.init import init_centroids, InitMethod
 from kluster_fudge.utils import update_centroids
@@ -15,7 +16,20 @@ class KModes:
         init_method: str = "cao",
         dist_metric: str = "hamming",
         random_state: int = 42,
+        n_jobs: int | None = None,
     ) -> None:
+        """
+        K-Modes clustering classifier.
+
+        Args:
+            n_clusters: The number of clusters to form. Defaults to 8.
+            n_init: Number of times the algorithm will be run with different centroid seeds. Defaults to 10.
+            max_iter: Maximum number of iterations for a single run. Defaults to 100.
+            init_method: Method for initialization ('random', 'huang', or 'cao'). Defaults to 'cao'.
+            dist_metric: Distance metric to use ('hamming', 'jaccard', or 'ng'). Defaults to 'hamming'.
+            random_state: Deterministic random seed for centroid initialization. Defaults to 42.
+            n_jobs: The number of parallel threads to use for Numba. If None, uses Numba's default. Defaults to None.
+        """
         self.n_clusters = n_clusters
         self.n_init = n_init
         self.max_iter = max_iter
@@ -27,6 +41,7 @@ class KModes:
         self.is_df = False
         self.random_state = random_state
         self.cost_ = 0.0
+        self.n_jobs = n_jobs
 
         if init_method == "random":
             self.init_method = InitMethod.RAND
@@ -134,77 +149,91 @@ class KModes:
         Returns:
             None
         """
+        old_threads = None
+        if self.n_jobs is not None:
+            try:
+                old_threads = numba.get_num_threads()
+                numba.set_num_threads(self.n_jobs)
+            except Exception:
+                pass
 
-        # check if X is a pandas dataframe, if so, convert to numpy array
-        if hasattr(X, "values"):
-            X = X.values
-            self.is_df = True
-        else:
-            X = np.asarray(X)
+        try:
+            # check if X is a pandas dataframe, if so, convert to numpy array
+            if hasattr(X, "values"):
+                X = X.values
+                self.is_df = True
+            else:
+                X = np.asarray(X)
 
-        # encode X into integer array for efficiency
-        X = self._encode(X)
+            # encode X into integer array for efficiency
+            X = self._encode(X)
 
-        best_cost = float("inf")
-        best_centroids = None
-        best_labels = None
+            best_cost = float("inf")
+            best_centroids = None
+            best_labels = None
 
-        if self.n_init < 1:
-            raise ValueError(f"n_init must be at least 1, got {self.n_init}")
+            if self.n_init < 1:
+                raise ValueError(f"n_init must be at least 1, got {self.n_init}")
 
-        # Initialize best_cost to infinity
-        best_cost = np.inf
-        best_centroids = None
-        best_labels = None
+            # Initialize best_cost to infinity
+            best_cost = np.inf
+            best_centroids = None
+            best_labels = None
 
-        for init_idx in range(self.n_init):
-            # Use a different random state for each initialization
-            current_random_state = (
-                self.random_state + init_idx if self.random_state is not None else None
-            )
+            for init_idx in range(self.n_init):
+                # Use a different random state for each initialization
+                current_random_state = (
+                    self.random_state + init_idx if self.random_state is not None else None
+                )
 
-            centroids = init_centroids(
-                X, self.n_clusters, self.init_method, random_state=current_random_state
-            )
+                centroids = init_centroids(
+                    X, self.n_clusters, self.init_method, random_state=current_random_state
+                )
 
-            labels = np.zeros(X.shape[0], dtype=int)
+                labels = np.zeros(X.shape[0], dtype=int)
 
-            # Iteration loop
-            for i in range(self.max_iter):
-                # Use Hamming for the first iteration if metric is NG to generate initial labels
-                current_metric = self.dist_metric
-                if i == 0 and self.dist_metric == DistanceMetrics.NG:
-                    current_metric = DistanceMetrics.HAMMING
+                # Iteration loop
+                for i in range(self.max_iter):
+                    # Use Hamming for the first iteration if metric is NG to generate initial labels
+                    current_metric = self.dist_metric
+                    if i == 0 and self.dist_metric == DistanceMetrics.NG:
+                        current_metric = DistanceMetrics.HAMMING
 
-                dist = distance(
-                    X, centroids, current_metric, labels=labels
-                )  # compute distance
+                    dist = distance(
+                        X, centroids, current_metric, labels=labels
+                    )  # compute distance
 
-                labels = np.argmin(dist, axis=1)
+                    labels = np.argmin(dist, axis=1)
 
-                # update centroids
-                new_centroids = update_centroids(X, labels, self.n_clusters)
+                    # update centroids
+                    new_centroids = update_centroids(X, labels, self.n_clusters)
 
-                if np.array_equal(centroids, new_centroids):
-                    break
+                    if np.array_equal(centroids, new_centroids):
+                        break
 
-                centroids = new_centroids
+                    centroids = new_centroids
 
-            # Compute cost for run and update final label assignments
-            final_dist = distance(X, centroids, self.dist_metric, labels=labels)
-            labels = np.argmin(final_dist, axis=1)
-            cost = self._compute_cost(X, centroids, labels)
+                # Compute cost for run and update final label assignments
+                final_dist = distance(X, centroids, self.dist_metric, labels=labels)
+                labels = np.argmin(final_dist, axis=1)
+                cost = self._compute_cost(X, centroids, labels)
 
-            # Update best run if this one is better
-            if cost < best_cost:
-                best_cost = cost
-                best_centroids = centroids
-                best_labels = labels
+                # Update best run if this one is better
+                if cost < best_cost:
+                    best_cost = cost
+                    best_centroids = centroids
+                    best_labels = labels
 
-        self.centroids = best_centroids
-        self.labels = best_labels
-        self.cost_ = best_cost
-        self.decoded_centroids = self._decode(self.centroids)
+            self.centroids = best_centroids
+            self.labels = best_labels
+            self.cost_ = best_cost
+            self.decoded_centroids = self._decode(self.centroids)
+        finally:
+            if old_threads is not None:
+                try:
+                    numba.set_num_threads(old_threads)
+                except Exception:
+                    pass
 
     def predict(self, X: npt.ArrayLike) -> npt.NDArray[np.int64]:
         """
@@ -216,14 +245,29 @@ class KModes:
         Returns:
             (npt.NDArray[np.int64]) Labels array (n_samples,)
         """
-        if hasattr(X, "values"):
-            X = X.values
-        else:
-            X = np.asarray(X)
+        old_threads = None
+        if self.n_jobs is not None:
+            try:
+                old_threads = numba.get_num_threads()
+                numba.set_num_threads(self.n_jobs)
+            except Exception:
+                pass
 
-        X = self._encode(X)
-        dist = distance(X, self.centroids, self.dist_metric)
-        return np.argmin(dist, axis=1)
+        try:
+            if hasattr(X, "values"):
+                X = X.values
+            else:
+                X = np.asarray(X)
+
+            X = self._encode(X)
+            dist = distance(X, self.centroids, self.dist_metric)
+            return np.argmin(dist, axis=1)
+        finally:
+            if old_threads is not None:
+                try:
+                    numba.set_num_threads(old_threads)
+                except Exception:
+                    pass
 
     def fit_predict(self, X: npt.ArrayLike) -> npt.NDArray[np.int64]:
         """

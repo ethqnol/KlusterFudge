@@ -4,4 +4,4 @@ from .gpu import KModesGPU
 
 __all__ = ["KModes", "KModesGPU", "InitMethod"]
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"

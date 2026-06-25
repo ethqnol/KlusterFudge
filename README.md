@@ -52,12 +52,13 @@ df = pd.DataFrame({
     'shape': ['circle', 'square', 'circle', 'square', 'triangle', 'triangle']
 })
 
-# 2. Initialize Model
+# 2. Initialize Model (optionally set n_jobs to limit parallel CPU threads)
 model = KModes(
     n_clusters=2, 
     init_method='cao', 
     dist_metric='hamming', 
-    random_state=42
+    random_state=42,
+    n_jobs=4  # Run with 4 threads (omit or set to None to use default threads)
 )
 
 # 3. Fit and Predict

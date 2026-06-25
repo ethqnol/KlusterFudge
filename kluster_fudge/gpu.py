@@ -21,7 +21,21 @@ class KModesGPU(KModes):
         dist_metric: str = "hamming",
         random_state: int = 42,
         device: str | None = None,
+        n_jobs: int | None = None,
     ) -> None:
+        """
+        GPU-accelerated K-Modes clustering classifier using PyTorch.
+
+        Args:
+            n_clusters: The number of clusters to form. Defaults to 8.
+            n_init: Number of times the algorithm will be run with different centroid seeds. Defaults to 10.
+            max_iter: Maximum number of iterations for a single run. Defaults to 100.
+            init_method: Method for initialization ('random', 'huang', or 'cao'). Defaults to 'cao'.
+            dist_metric: Distance metric to use ('hamming', 'jaccard', or 'ng'). Defaults to 'hamming'.
+            random_state: Deterministic random seed for centroid initialization. Defaults to 42.
+            device: Device to run PyTorch calculations on (e.g. 'cuda', 'mps', 'cpu'). Auto-detected if None. Defaults to None.
+            n_jobs: The number of parallel CPU threads to use for PyTorch (only applicable when running on CPU). Defaults to None.
+        """
         super().__init__(
             n_clusters=n_clusters,
             n_init=n_init,
@@ -29,6 +43,7 @@ class KModesGPU(KModes):
             init_method=init_method,
             dist_metric=dist_metric,
             random_state=random_state,
+            n_jobs=n_jobs,
         )
         if torch is None:
             raise ImportError(
@@ -57,133 +72,148 @@ class KModesGPU(KModes):
         Returns:
             None
         """
-        # check if X is a pandas dataframe
-        if hasattr(X, "values"):
-            X = X.values
-            self.is_df = True
-        else:
-            X = np.asarray(X)
+        old_threads = None
+        if self.n_jobs is not None:
+            try:
+                old_threads = torch.get_num_threads()
+                torch.set_num_threads(self.n_jobs)
+            except Exception:
+                pass
 
-        # cpu enc
-        X_encoded_cpu = self._encode(X)
-        X_gpu = torch.from_numpy(X_encoded_cpu).to(self.device)
+        try:
+            # check if X is a pandas dataframe
+            if hasattr(X, "values"):
+                X = X.values
+                self.is_df = True
+            else:
+                X = np.asarray(X)
 
-        # check int type
-        n_samples, n_features = X_gpu.shape
+            # cpu enc
+            X_encoded_cpu = self._encode(X)
+            X_gpu = torch.from_numpy(X_encoded_cpu).to(self.device)
 
-        best_cost = float("inf")
-        best_centroids = None
-        best_labels = None
+            # check int type
+            n_samples, n_features = X_gpu.shape
 
-        if self.n_init < 1:
-            raise ValueError(f"n_init must be at least 1, got {self.n_init}")
+            best_cost = float("inf")
+            best_centroids = None
+            best_labels = None
 
-        if self.random_state is not None:
-            torch.manual_seed(self.random_state)
+            if self.n_init < 1:
+                raise ValueError(f"n_init must be at least 1, got {self.n_init}")
 
-        for init_idx in range(self.n_init):
-            current_seed = (
-                self.random_state + init_idx if self.random_state is not None else None
-            )
+            if self.random_state is not None:
+                torch.manual_seed(self.random_state)
 
-            # Oslice the numpy array for initialization on CPU
-            from kluster_fudge.init import init_centroids
+            for init_idx in range(self.n_init):
+                current_seed = (
+                    self.random_state + init_idx if self.random_state is not None else None
+                )
 
-            centroids_cpu = init_centroids(
-                X_encoded_cpu,
-                self.n_clusters,
-                self.init_method,
-                random_state=current_seed,
-            )
+                # Oslice the numpy array for initialization on CPU
+                from kluster_fudge.init import init_centroids
 
-            centroids = torch.from_numpy(centroids_cpu).to(self.device)
-            labels = torch.zeros(n_samples, dtype=torch.long, device=self.device)
+                centroids_cpu = init_centroids(
+                    X_encoded_cpu,
+                    self.n_clusters,
+                    self.init_method,
+                    random_state=current_seed,
+                )
 
-            for i in range(self.max_iter):
-                # dist calc (expand dims)
+                centroids = torch.from_numpy(centroids_cpu).to(self.device)
+                labels = torch.zeros(n_samples, dtype=torch.long, device=self.device)
 
-                # normalize metric
+                for i in range(self.max_iter):
+                    # dist calc (expand dims)
+
+                    # normalize metric
+                    metric_str = self.dist_metric
+                    if hasattr(metric_str, "value"):
+                        metric_str = metric_str.value
+
+                    if metric_str == "hamming":
+                        dists = self._hamming(X_gpu, centroids)
+                    elif metric_str == "jaccard":
+                        dists = self._jaccard(X_gpu, centroids)
+                    elif metric_str == "ng":
+                        if i == 0:
+                            # 1st iter: hamming
+                            dists = self._hamming(X_gpu, centroids)
+                        else:
+                            dists = self._ng(X_gpu, centroids, labels, n_features)
+                    else:
+                        # fallback
+                        raise ValueError(f"Unsupported metric: {self.dist_metric}")
+
+                    # assign lbls
+                    new_labels = torch.argmin(dists, dim=1)
+
+                    # converged?
+                    if torch.equal(labels, new_labels) and i > 0:
+                        break
+
+                    labels = new_labels
+
+                    # update centroids (vec w/ bincount)
+
+                    max_val = int(X_gpu.max().item())
+                    if max_val < 0:
+                        max_val = 0
+                    val_offset = max_val + 1
+
+                    counts = self._compute_counts(
+                        X_gpu, labels, self.n_clusters, n_features, val_offset
+                    )
+
+                    # reshape (F, K, V)
+                    counts_reshaped = counts.view(n_features, self.n_clusters, val_offset)
+
+                    # mode via argmax
+                    new_centroids_t = counts_reshaped.argmax(dim=2)
+                    new_centroids = new_centroids_t.t()  # (K, F)
+
+                    # handle empty
+                    cluster_counts = torch.bincount(labels, minlength=self.n_clusters)
+                    empty_clusters = cluster_counts == 0
+
+                    if empty_clusters.any():
+                        new_centroids[empty_clusters] = centroids[empty_clusters]
+
+                    centroids = new_centroids
+
+                # final cost
                 metric_str = self.dist_metric
                 if hasattr(metric_str, "value"):
                     metric_str = metric_str.value
 
                 if metric_str == "hamming":
-                    dists = self._hamming(X_gpu, centroids)
+                    final_dists = self._hamming(X_gpu, centroids)
                 elif metric_str == "jaccard":
-                    dists = self._jaccard(X_gpu, centroids)
+                    final_dists = self._jaccard(X_gpu, centroids)
                 elif metric_str == "ng":
-                    if i == 0:
-                        # 1st iter: hamming
-                        dists = self._hamming(X_gpu, centroids)
-                    else:
-                        dists = self._ng(X_gpu, centroids, labels, n_features)
+                    final_dists = self._ng(X_gpu, centroids, labels, n_features)
                 else:
-                    # fallback
-                    raise ValueError(f"Unsupported metric: {self.dist_metric}")
+                    final_dists = self._hamming(X_gpu, centroids)
 
-                # assign lbls
-                new_labels = torch.argmin(dists, dim=1)
+                row_idx = torch.arange(n_samples, device=self.device)
+                min_dists = final_dists[row_idx, labels]
+                cost = min_dists.sum().item()
 
-                # converged?
-                if torch.equal(labels, new_labels) and i > 0:
-                    break
+                if cost < best_cost:
+                    best_cost = cost
+                    best_centroids = centroids.clone()
+                    best_labels = labels.clone()
 
-                labels = new_labels
-
-                # update centroids (vec w/ bincount)
-
-                max_val = int(X_gpu.max().item())
-                if max_val < 0:
-                    max_val = 0
-                val_offset = max_val + 1
-
-                counts = self._compute_counts(
-                    X_gpu, labels, self.n_clusters, n_features, val_offset
-                )
-
-                # reshape (F, K, V)
-                counts_reshaped = counts.view(n_features, self.n_clusters, val_offset)
-
-                # mode via argmax
-                new_centroids_t = counts_reshaped.argmax(dim=2)
-                new_centroids = new_centroids_t.t()  # (K, F)
-
-                # handle empty
-                cluster_counts = torch.bincount(labels, minlength=self.n_clusters)
-                empty_clusters = cluster_counts == 0
-
-                if empty_clusters.any():
-                    new_centroids[empty_clusters] = centroids[empty_clusters]
-
-                centroids = new_centroids
-
-            # final cost
-            metric_str = self.dist_metric
-            if hasattr(metric_str, "value"):
-                metric_str = metric_str.value
-
-            if metric_str == "hamming":
-                final_dists = self._hamming(X_gpu, centroids)
-            elif metric_str == "jaccard":
-                final_dists = self._jaccard(X_gpu, centroids)
-            elif metric_str == "ng":
-                final_dists = self._ng(X_gpu, centroids, labels, n_features)
-            else:
-                final_dists = self._hamming(X_gpu, centroids)
-
-            row_idx = torch.arange(n_samples, device=self.device)
-            min_dists = final_dists[row_idx, labels]
-            cost = min_dists.sum().item()
-
-            if cost < best_cost:
-                best_cost = cost
-                best_centroids = centroids.clone()
-                best_labels = labels.clone()
-
-        self.centroids = best_centroids.cpu().numpy()
-        self.labels = best_labels.cpu().numpy()
-        self.cost_ = best_cost
-        self.decoded_centroids = self._decode(self.centroids)
+            self.centroids = best_centroids.cpu().numpy()
+            self.labels = best_labels.cpu().numpy()
+            self.cost_ = best_cost
+            self.decoded_centroids = self._decode(self.centroids)
+        finally:
+            if old_threads is not None:
+                try:
+                    torch.set_num_threads(old_threads)
+                except Exception:
+                    pass
 
     def _compute_counts(
         self,
